@@ -1,0 +1,16 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+# Proxy API calls to the deployed Spring Boot backend
+[[redirects]]
+  from = "/api/*"
+  to = "https://travelplanner-backend.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# SPA client-side routing fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
