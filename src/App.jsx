@@ -1,7 +1,22 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-const API = 'http://localhost:8080'
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_API_URL
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '')
+  }
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:8080'
+    }
+  }
+  return ''
+}
+
+const API = getApiBase()
+
 
 function CreateTrip({ back }) {
   const [tripName, setTripName] = useState('')
@@ -1185,35 +1200,54 @@ function Sidebar() {
   )
 }
 
+const VALID_PAGES = ['createTrip', 'trips', 'members', 'destinations', 'itinerary', 'expenses']
+
 function Dashboard({ logout }) {
-  const [page, setPage] = useState('dashboard')
+  const getInitialPage = () => {
+    const hash = window.location.hash.replace(/^#\/?/, '')
+    if (VALID_PAGES.includes(hash)) {
+      return hash
+    }
+    const saved = localStorage.getItem('travelmate_page')
+    if (saved && VALID_PAGES.includes(saved)) {
+      return saved
+    }
+    return 'dashboard'
+  }
+
+  const [page, setPage] = useState(getInitialPage)
 
   useEffect(() => {
-    const handleBack = () => {
-      setPage('dashboard')
+    const handleHash = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '')
+      if (VALID_PAGES.includes(hash)) {
+        setPage(hash)
+        localStorage.setItem('travelmate_page', hash)
+      } else {
+        setPage('dashboard')
+        localStorage.setItem('travelmate_page', 'dashboard')
+      }
     }
 
-    window.addEventListener('popstate', handleBack)
+    window.addEventListener('hashchange', handleHash)
+    window.addEventListener('popstate', handleHash)
 
     return () => {
-      window.removeEventListener('popstate', handleBack)
+      window.removeEventListener('hashchange', handleHash)
+      window.removeEventListener('popstate', handleHash)
     }
   }, [])
 
   const openPage = newPage => {
-    window.history.pushState(
-      { page: newPage },
-      '',
-      window.location.pathname
-    )
-
+    window.location.hash = `#/${newPage}`
+    localStorage.setItem('travelmate_page', newPage)
     setPage(newPage)
   }
 
   const goBack = () => {
-    if (page !== 'dashboard') {
-      window.history.back()
-    }
+    window.location.hash = '#/dashboard'
+    localStorage.setItem('travelmate_page', 'dashboard')
+    setPage('dashboard')
   }
 
   if (page === 'createTrip') {
@@ -1363,7 +1397,9 @@ function Feature({ icon, title, text, onClick }) {
 
 function App() {
   const [login, setLogin] = useState(true)
-  const [loggedIn, setLoggedIn] = useState(false)
+  const [loggedIn, setLoggedIn] = useState(() => {
+    return localStorage.getItem('travelmate_logged_in') === 'true'
+  })
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -1392,12 +1428,8 @@ function App() {
       const result = await response.text()
 
       if (login && result === 'Login successful') {
-        window.history.replaceState(
-          { page: 'dashboard' },
-          '',
-          window.location.pathname
-        )
-
+        localStorage.setItem('travelmate_logged_in', 'true')
+        localStorage.setItem('travelmate_user_email', email)
         setLoggedIn(true)
       } else {
         setMessage(result)
@@ -1408,16 +1440,14 @@ function App() {
   }
 
   const logout = () => {
+    localStorage.removeItem('travelmate_logged_in')
+    localStorage.removeItem('travelmate_user_email')
+    localStorage.removeItem('travelmate_page')
     setLoggedIn(false)
     setEmail('')
     setPassword('')
     setMessage('')
-
-    window.history.replaceState(
-      null,
-      '',
-      window.location.pathname
-    )
+    window.location.hash = ''
   }
 
   if (loggedIn) {
